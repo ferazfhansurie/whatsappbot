@@ -117,8 +117,16 @@ const firebaseConfig = {
         >
           <div className="container relative z-10 sm:px-10">
             <div className="block grid-cols-2 gap-4 xl:grid">
+             {/* Add mobile logo */}
+             <div className="flex justify-center mb-8 xl:hidden">
+                <img
+                  alt="Juta Software Logo"
+                  className="w-[50%]"
+                  src={logoUrl2}
+                />
+              </div>
               <div className="flex-col hidden min-h-screen xl:flex">
-              <div className="my-auto flex flex-col items-center w-full">
+                <div className="my-auto flex flex-col items-center w-full">
                   <img
                     alt="Juta Software Logo"
                     className="w-[80%] -mt-16 -ml-64"
@@ -126,7 +134,7 @@ const firebaseConfig = {
                   />
                 </div>
               </div>
-              <div className="flex h-screen py-5 my-10 xl:h-auto xl:py-0 xl:my-0">
+              <div className="flex py-5 my-10 xl:h-auto xl:py-0 xl:my-0">
                 <div className="w-full px-5 py-8 mx-auto my-auto bg-white rounded-md shadow-md xl:ml-20 dark:bg-darkmode-600 xl:bg-transparent sm:px-8 xl:p-0 xl:shadow-none sm:w-3/4 lg:w-2/4 xl:w-auto">
                   <h2 className="text-2xl font-bold text-center intro-x xl:text-3xl xl:text-left">
                     Sign In
