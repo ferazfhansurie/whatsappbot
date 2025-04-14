@@ -39,7 +39,18 @@ function AIResponses() {
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [currentResponseMedia, setCurrentResponseMedia] = useState<string[]>([]);
     
+    console.log('[AIResponses] Component mounted');
+    console.log('[AIResponses] Current state:', {
+        responseType,
+        responsesCount: responses.length,
+        availableTagsCount: availableTags.length,
+        selectedTagsCount: selectedTags.length,
+        isEditing,
+        searchQuery
+    });
+
     const [newResponse, setNewResponse] = useState({
         keywords: [''],
         description: '',
@@ -57,7 +68,7 @@ function AIResponses() {
     const [selectedVideos, setSelectedVideos] = useState<File[]>([]);
     const [selectedVideoUrls, setSelectedVideoUrls] = useState<string[]>([]);
 
-    const [keywordSource, setKeywordSource] = useState<'user' | 'bot'>('user');
+    const [keywordSource, setKeywordSource] = useState<'user' | 'bot' | 'own'>('user');
 
     const [tagActionMode, setTagActionMode] = useState<'add' | 'delete'>('add');
 
@@ -67,6 +78,7 @@ function AIResponses() {
     const storage = getStorage();
 
     useEffect(() => {
+        console.log('[AIResponses] useEffect triggered with responseType:', responseType);
         fetchResponses();
         if (responseType === 'Tag') {
             fetchTags();
@@ -77,20 +89,30 @@ function AIResponses() {
 
     const fetchResponses = async () => {
         try {
+            console.log('[AIResponses] Fetching responses for type:', responseType);
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user) {
+                console.log('[AIResponses] No user found, skipping fetch');
+                return;
+            }
 
             const userRef = doc(firestore, 'user', user.email!);
             const userSnapshot = await getDoc(userRef);
-            if (!userSnapshot.exists()) return;
+            if (!userSnapshot.exists()) {
+                console.log('[AIResponses] No user document found, skipping fetch');
+                return;
+            }
             const companyId = userSnapshot.data().companyId;
 
             const responsesRef = collection(firestore, `companies/${companyId}/ai${responseType}Responses`);
             const responsesQuery = query(responsesRef, orderBy('createdAt', 'desc'));
             const responsesSnapshot = await getDocs(responsesQuery);
 
+            console.log(`[AIResponses] Fetched ${responsesSnapshot.size} responses`);
+
             const fetchedResponses: AIResponse[] = responsesSnapshot.docs.map(doc => {
                 const data = doc.data();
+                console.log(`[AIResponses] Processing response ${doc.id}:`, data);
                 const baseResponse = {
                     id: doc.id,
                     keywords: Array.isArray(data.keywords) ? data.keywords : 
@@ -142,8 +164,9 @@ function AIResponses() {
             });
 
             setResponses(fetchedResponses);
+            console.log('[AIResponses] Successfully set responses:', fetchedResponses.length);
         } catch (error) {
-            console.error('Error fetching responses:', error);
+            console.error('[AIResponses] Error fetching responses:', error);
             toast.error('Error fetching responses');
         }
     };
@@ -234,8 +257,16 @@ function AIResponses() {
     };
 
     const addResponse = async () => {
+        console.log('[AIResponses] Adding new response:', {
+            responseType,
+            keywords: newResponse.keywords,
+            description: newResponse.description,
+            status: newResponse.status
+        });
+
         const validKeywords = newResponse.keywords.filter(k => k.trim() !== '');
         if (validKeywords.length === 0) {
+            console.log('[AIResponses] No valid keywords provided');
             toast.error('Please provide at least one keyword');
             return;
         }
@@ -354,22 +385,25 @@ function AIResponses() {
             setSelectedVideos([]);
             setSelectedVideoUrls([]);
             
+            console.log('[AIResponses] Successfully added response');
             fetchResponses();
             toast.success('Response added successfully');
         } catch (error) {
-            console.error('Error adding response:', error);
+            console.error('[AIResponses] Error adding response:', error);
             toast.error('Error adding response');
         }
     };
 
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
+        console.log('[AIResponses] Selected images:', files.map(f => f.name));
         const urls = files.map(file => URL.createObjectURL(file));
         setSelectedImages(files);
         setSelectedImageUrls(urls);
     };
 
     const handleImageRemove = (index: number) => {
+        console.log('[AIResponses] Removing image at index:', index);
         URL.revokeObjectURL(selectedImageUrls[index]);
         setSelectedImages(prev => prev.filter((_, i) => i !== index));
         setSelectedImageUrls(prev => prev.filter((_, i) => i !== index));
@@ -419,6 +453,16 @@ function AIResponses() {
 
     const handleVideoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
+        
+        // Check file sizes (20MB = 20 * 1024 * 1024 bytes)
+        const MAX_FILE_SIZE = 20 * 1024 * 1024;
+        const oversizedFiles = files.filter(file => file.size > MAX_FILE_SIZE);
+        
+        if (oversizedFiles.length > 0) {
+            toast.error(`Some files exceed the 20MB limit: ${oversizedFiles.map(f => f.name).join(', ')}`);
+            return;
+        }
+
         const urls = files.map(file => URL.createObjectURL(file));
         setSelectedVideos(files);
         setSelectedVideoUrls(urls);
@@ -441,36 +485,53 @@ function AIResponses() {
     }, [selectedImageUrls, selectedAudioUrls, selectedDocUrls, selectedVideoUrls]);
 
     const deleteResponse = async (id: string) => {
+        console.log('[AIResponses] Deleting response:', id);
         try {
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user) {
+                console.log('[AIResponses] No user found, skipping delete');
+                return;
+            }
 
             const userRef = doc(firestore, 'user', user.email!);
             const userSnapshot = await getDoc(userRef);
-            if (!userSnapshot.exists()) return;
+            if (!userSnapshot.exists()) {
+                console.log('[AIResponses] No user document found, skipping delete');
+                return;
+            }
             const companyId = userSnapshot.data().companyId;
 
             await deleteDoc(doc(firestore, `companies/${companyId}/ai${responseType}Responses`, id));
+            console.log('[AIResponses] Successfully deleted response');
             fetchResponses();
             toast.success('Response deleted successfully');
         } catch (error) {
-            console.error('Error deleting response:', error);
+            console.error('[AIResponses] Error deleting response:', error);
             toast.error('Error deleting response');
         }
     };
 
     const updateResponse = async (id: string) => {
+        console.log('[AIResponses] Updating response:', id);
         try {
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user) {
+                console.log('[AIResponses] No user found, skipping update');
+                return;
+            }
+
+            const response = responses.find(r => r.id === id);
+            if (!response) {
+                console.log('[AIResponses] Response not found:', id);
+                return;
+            }
+
+            console.log('[AIResponses] Current response data:', response);
 
             const userRef = doc(firestore, 'user', user.email!);
             const userSnapshot = await getDoc(userRef);
             if (!userSnapshot.exists()) return;
             const companyId = userSnapshot.data().companyId;
-
-            const response = responses.find(r => r.id === id);
-            if (!response) return;
 
             const responseRef = doc(firestore, `companies/${companyId}/ai${responseType}Responses`, id);
             
@@ -514,25 +575,41 @@ function AIResponses() {
                     }
                     break;
                 case 'Image':
+                    // Handle existing images + new images
+                    let imageUrls = [...currentResponseMedia];
                     if (selectedImages.length > 0) {
                         const newImageUrls = await uploadFiles(selectedImages, 'image');
-                        updatedData.imageUrls = newImageUrls;
-                        updatedData.imageUrl = newImageUrls[0] || '';
+                        imageUrls = [...imageUrls, ...newImageUrls];
                     }
+                    updatedData.imageUrls = imageUrls;
+                    updatedData.imageUrl = imageUrls.length > 0 ? imageUrls[0] : '';
                     break;
                 case 'Voice':
+                    // Handle existing voice files + new voice files
+                    let voiceUrls = [...currentResponseMedia];
                     if (selectedAudios.length > 0) {
-                        const voiceUrls = await uploadFiles(selectedAudios, 'voice');
-                        updatedData.voiceUrls = voiceUrls;
-                        updatedData.captions = selectedAudios.map(() => '');
+                        const newVoiceUrls = await uploadFiles(selectedAudios, 'voice');
+                        voiceUrls = [...voiceUrls, ...newVoiceUrls];
                     }
+                    updatedData.voiceUrls = voiceUrls;
+                    updatedData.captions = voiceUrls.map((_, i) => {
+                        if (i < ((response as AIVoiceResponse).captions?.length || 0)) {
+                            return (response as AIVoiceResponse).captions?.[i] || '';
+                        }
+                        return '';
+                    });
                     break;
                 case 'Document':
+                    // Handle existing docs + new docs
+                    let docUrls = [...currentResponseMedia];
+                    let docNames = [...(response as AIDocumentResponse).documentNames || []];
                     if (selectedDocs.length > 0) {
-                        const docUrls = await uploadFiles(selectedDocs, 'document');
-                        updatedData.documentUrls = docUrls;
-                        updatedData.documentNames = selectedDocs.map(doc => doc.name);
+                        const newDocUrls = await uploadFiles(selectedDocs, 'document');
+                        docUrls = [...docUrls, ...newDocUrls];
+                        docNames = [...docNames, ...selectedDocs.map(doc => doc.name)];
                     }
+                    updatedData.documentUrls = docUrls;
+                    updatedData.documentNames = docNames;
                     break;
                 case 'Assign':
                     if (selectedEmployees.length > 0) {
@@ -540,23 +617,34 @@ function AIResponses() {
                     }
                     break;
                 case 'Video':
+                    // Handle existing videos + new videos
+                    let videoUrls = [...currentResponseMedia];
+                    let videoTitles = [...(response as AIVideoResponse).videoTitles || []];
                     if (selectedVideos.length > 0) {
-                        const videoUrls = await uploadFiles(selectedVideos, 'video');
-                        updatedData.videoUrls = videoUrls;
-                        updatedData.videoTitles = selectedVideos.map(video => video.name);
+                        const newVideoUrls = await uploadFiles(selectedVideos, 'video');
+                        videoUrls = [...videoUrls, ...newVideoUrls];
+                        videoTitles = [...videoTitles, ...selectedVideos.map(video => video.name)];
                     }
+                    updatedData.videoUrls = videoUrls;
+                    updatedData.videoTitles = videoTitles;
                     break;
             }
 
             await updateDoc(responseRef, updatedData);
+            console.log('[AIResponses] Successfully updated response');
             setIsEditing(null);
+            setCurrentResponseMedia([]);
             resetForm();
             fetchResponses();
             toast.success('Response updated successfully');
         } catch (error) {
-            console.error('Error updating response:', error);
+            console.error('[AIResponses] Error updating response:', error);
             toast.error('Error updating response');
         }
+    };
+
+    const removeExistingMedia = (index: number) => {
+        setCurrentResponseMedia(prev => prev.filter((_, i) => i !== index));
     };
 
     const resetForm = () => {
@@ -587,8 +675,15 @@ function AIResponses() {
         )
     );
 
+    console.log('[AIResponses] Filtered responses:', {
+        total: responses.length,
+        filtered: filteredResponses.length,
+        searchQuery
+    });
+
     // When starting to edit, set the selected items based on the response type
     const startEditing = (response: AIResponse) => {
+        console.log('[AIResponses] Starting edit for response:', response.id);
         setIsEditing(response.id);
         setKeywordSource(response.keywordSource || 'user');
         
@@ -596,6 +691,7 @@ function AIResponses() {
         switch (response.type) {
             case 'Tag':
                 const tagResponse = response as AITagResponse;
+                console.log('[AIResponses] Setting selected tags:', tagResponse.tags);
                 const selectedTagIds = tagResponse.tags
                     .map(tagName => availableTags.find(t => t.name === tagName)?.id)
                     .filter((id): id is string => id !== undefined);
@@ -603,15 +699,18 @@ function AIResponses() {
                 break;
             case 'Image':
                 const imageResponse = response as AIImageResponse;
-                setSelectedImageUrls(imageResponse.imageUrls || []);
+                setSelectedImageUrls([]);
+                setCurrentResponseMedia(imageResponse.imageUrls || []);
                 break;
             case 'Voice':
                 const voiceResponse = response as AIVoiceResponse;
-                setSelectedAudioUrls(voiceResponse.voiceUrls || []);
+                setSelectedAudioUrls([]);
+                setCurrentResponseMedia(voiceResponse.voiceUrls || []);
                 break;
             case 'Document':
                 const docResponse = response as AIDocumentResponse;
-                setSelectedDocUrls(docResponse.documentUrls || []);
+                setSelectedDocUrls([]);
+                setCurrentResponseMedia(docResponse.documentUrls || []);
                 break;
             case 'Assign':
                 const assignResponse = response as AIAssignResponse;
@@ -619,7 +718,8 @@ function AIResponses() {
                 break;
             case 'Video':
                 const videoResponse = response as AIVideoResponse;
-                setSelectedVideoUrls(videoResponse.videoUrls || []);
+                setSelectedVideoUrls([]);
+                setCurrentResponseMedia(videoResponse.videoUrls || []);
                 break;
         }
     };
@@ -881,6 +981,32 @@ function AIResponses() {
                                                     )}
                                                     {response.type === 'Image' && (
                                                         <div>
+                                                            {/* Display existing images with delete option */}
+                                                            {currentResponseMedia.length > 0 && (
+                                                                <>
+                                                                    <div className="mb-4">
+                                                                        <FormLabel>Current Images</FormLabel>
+                                                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                                                            {currentResponseMedia.map((url, idx) => (
+                                                                                <div key={idx} className="relative">
+                                                                                    <img 
+                                                                                        src={url} 
+                                                                                        alt={`Response ${idx + 1}`}
+                                                                                        className="w-full h-40 object-cover rounded-lg"
+                                                                                    />
+                                                                                    <Button
+                                                                                        variant="danger"
+                                                                                        className="absolute top-1 right-1 w-8 h-8 p-0 rounded-full"
+                                                                                        onClick={() => removeExistingMedia(idx)}
+                                                                                    >
+                                                                                        <Lucide icon="X" className="w-4 h-4" />
+                                                                                    </Button>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                             {/* Form to add new images */}
                                                             <ImageResponseForm
                                                                 selectedImageUrls={selectedImageUrls}
@@ -892,22 +1018,77 @@ function AIResponses() {
                                                         </div>
                                                     )}
                                                     {response.type === 'Voice' && (
-                                                        <VoiceResponseForm
-                                                            selectedAudioUrls={selectedAudioUrls}
-                                                            onAudioSelect={handleAudioSelect}
-                                                            onAudioRemove={handleAudioRemove}
-                                                            keywordSource={keywordSource}
-                                                            onKeywordSourceChange={setKeywordSource}
-                                                        />
+                                                        <div>
+                                                            {/* Display existing audio files with delete option */}
+                                                            {currentResponseMedia.length > 0 && (
+                                                                <>
+                                                                    <div className="mb-4">
+                                                                        <FormLabel>Current Audio Files</FormLabel>
+                                                                        <div className="space-y-2">
+                                                                            {currentResponseMedia.map((url, idx) => (
+                                                                                <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-darkmode-400 rounded">
+                                                                                    <audio controls className="w-full max-w-md">
+                                                                                        <source src={url} type="audio/mpeg" />
+                                                                                        Your browser does not support the audio element.
+                                                                                    </audio>
+                                                                                    <Button
+                                                                                        variant="danger"
+                                                                                        className="ml-2"
+                                                                                        onClick={() => removeExistingMedia(idx)}
+                                                                                    >
+                                                                                        <Lucide icon="X" className="w-4 h-4" />
+                                                                                    </Button>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            <VoiceResponseForm
+                                                                selectedAudioUrls={selectedAudioUrls}
+                                                                onAudioSelect={handleAudioSelect}
+                                                                onAudioRemove={handleAudioRemove}
+                                                                keywordSource={keywordSource}
+                                                                onKeywordSourceChange={setKeywordSource}
+                                                            />
+                                                        </div>
                                                     )}
                                                     {response.type === 'Document' && (
-                                                        <DocumentResponseForm
-                                                            selectedDocUrls={selectedDocUrls}
-                                                            onDocumentSelect={handleDocumentSelect}
-                                                            onDocumentRemove={handleDocumentRemove}
-                                                            keywordSource={keywordSource}
-                                                            onKeywordSourceChange={setKeywordSource}
-                                                        />
+                                                        <div>
+                                                            {/* Display existing documents with delete option */}
+                                                            {currentResponseMedia.length > 0 && (
+                                                                <>
+                                                                    <div className="mb-4">
+                                                                        <FormLabel>Current Documents</FormLabel>
+                                                                        <div className="space-y-2">
+                                                                            {currentResponseMedia.map((url, idx) => (
+                                                                                <div key={idx} className="flex items-center justify-between p-2 bg-slate-50 dark:bg-darkmode-400 rounded">
+                                                                                    <div className="flex items-center">
+                                                                                        <Lucide icon="FileText" className="w-4 h-4 mr-2" />
+                                                                                        <span>{(response as AIDocumentResponse).documentNames[idx]}</span>
+                                                                                    </div>
+                                                                                    <a 
+                                                                                        href={url}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        className="text-primary hover:underline"
+                                                                                    >
+                                                                                        <Lucide icon="Download" className="w-4 h-4" />
+                                                                                    </a>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                            <DocumentResponseForm
+                                                                selectedDocUrls={selectedDocUrls}
+                                                                onDocumentSelect={handleDocumentSelect}
+                                                                onDocumentRemove={handleDocumentRemove}
+                                                                keywordSource={keywordSource}
+                                                                onKeywordSourceChange={setKeywordSource}
+                                                            />
+                                                        </div>
                                                     )}
                                                     {response.type === 'Assign' && (
                                                         <AssignResponseForm
@@ -920,6 +1101,31 @@ function AIResponses() {
                                                     )}
                                                     {response.type === 'Video' && (
                                                         <div>
+                                                            {/* Display existing videos with delete option */}
+                                                            {currentResponseMedia.length > 0 && (
+                                                                <>
+                                                                    <div className="mb-4">
+                                                                        <FormLabel>Current Videos</FormLabel>
+                                                                        <div className="space-y-4">
+                                                                            {currentResponseMedia.map((url, idx) => (
+                                                                                <div key={idx} className="relative">
+                                                                                    <video controls className="w-full rounded-lg">
+                                                                                        <source src={url} type="video/mp4" />
+                                                                                        Your browser does not support the video element.
+                                                                                    </video>
+                                                                                    <Button
+                                                                                        variant="danger"
+                                                                                        className="absolute top-2 right-2"
+                                                                                        onClick={() => removeExistingMedia(idx)}
+                                                                                    >
+                                                                                        <Lucide icon="X" className="w-4 h-4" />
+                                                                                    </Button>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                             {/* Form to add new videos */}
                                                             <VideoResponseForm
                                                                 selectedVideoUrls={selectedVideoUrls}

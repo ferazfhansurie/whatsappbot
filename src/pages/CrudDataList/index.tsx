@@ -125,8 +125,9 @@ function Main() {
     chatIds: string[];
     message: string;
     messages?: Array<{
-      [x: string]: string; text: string 
-}>;
+      [x: string]: string | boolean; // Changed to allow boolean values for isMain
+      text: string 
+    }>;
     messageDelays?: number[];
     mediaUrl?: string;
     documentUrl?: string;
@@ -179,6 +180,7 @@ function Main() {
       hasPlaceholders: boolean;
       placeholdersUsed: string[];
     };
+    isConsolidated?: boolean; // Added to indicate the new message structure
   }
   interface Message {
     text: string;
@@ -280,6 +282,7 @@ function Main() {
   const itemsPerPage = 50;
   const [employeeNames, setEmployeeNames] = useState<string[]>([]);
   const [showMassDeleteModal, setShowMassDeleteModal] = useState(false);
+  const [isMassDeleting, setIsMassDeleting] = useState(false);
   const [userFilter, setUserFilter] = useState<string>("");
   const [activeTab, setActiveTab] = useState<'tags' | 'users'>('tags');
   const [selectedTagFilters, setSelectedTagFilters] = useState<string[]>([]);
@@ -290,7 +293,7 @@ function Main() {
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [companyId, setCompanyId] = useState<string>("");
   const [showAllMessages, setShowAllMessages] = useState(false);
-  const [phoneIndex, setPhoneIndex] = useState<number>(0);
+  const [phoneIndex, setPhoneIndex] = useState<number | null>(null);
   const [phoneOptions, setPhoneOptions] = useState<number[]>([]);
   const [phoneNames, setPhoneNames] = useState<{ [key: number]: string }>({});
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -312,33 +315,83 @@ function Main() {
   const [infiniteLoop, setInfiniteLoop] = useState(false);
   const [showScheduledMessages, setShowScheduledMessages] = useState<boolean>(true);
   // First, add a state to track visible columns
-  const [visibleColumns, setVisibleColumns] = useState<{ [key: string]: boolean }>({
-    checkbox: true,  // Make sure this is included and set to true
+  const defaultVisibleColumns = {
+    checkbox: true,
     contact: true,
     phone: true,
     tags: true,
+    ic: true,
+    expiryDate: true,
+    vehicleNumber: true,
+    branch: true,
+    points: true,
     notes: true,
-    ...contacts[0]?.customFields ? 
-    Object.keys(contacts[0].customFields).reduce((acc, field) => ({
-      ...acc,
-      [`customField_${field}`]: true
-    }), {}) : {},
-    actions: true,
+    actions: true
+  };
+
+  const defaultColumnOrder = [
+    'checkbox',
+    'contact',
+    'phone',
+    'tags',
+    'ic',
+    'expiryDate',
+    'vehicleNumber',
+    'branch',
+    'points',
+    'notes',
+    'actions'
+  ];
+
+  const [visibleColumns, setVisibleColumns] = useState<{ [key: string]: boolean }>(() => {
+    const saved = localStorage.getItem('contactsVisibleColumns');
+    if (saved) {
+      const parsedColumns = JSON.parse(saved);
+      // Ensure essential columns are always visible
+      return {
+        ...parsedColumns,
+        checkbox: true,
+        contact: true,
+        phone: true,
+        actions: true
+      };
+    }
+    return {
+      ...defaultVisibleColumns,
+      ...contacts[0]?.customFields ? 
+      Object.keys(contacts[0].customFields).reduce((acc, field) => ({
+        ...acc,
+        [`customField_${field}`]: true
+      }), {}) : {}
+    };
   });
+
+  // Add this useEffect to save visible columns when they change
+  useEffect(() => {
+    localStorage.setItem('contactsVisibleColumns', JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
 
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     const saved = localStorage.getItem('contactsColumnOrder');
-    return saved ? JSON.parse(saved) : [
-      'checkbox',
-      'contact',
-      'phone',
-      'tags',
-      'points',
-      'notes',
-      'actions',
+    if (saved) {
+      const parsedOrder = JSON.parse(saved);
+      // Ensure all default columns are included
+      const missingColumns = defaultColumnOrder.filter(col => !parsedOrder.includes(col));
+      return [...parsedOrder, ...missingColumns];
+    }
+    return [
+      ...defaultColumnOrder,
       ...Object.keys(contacts[0]?.customFields || {}).map(field => `customField_${field}`)
     ];
   });
+
+  // Add a useEffect to ensure columns stay visible after data updates
+  useEffect(() => {
+    setVisibleColumns(prev => ({
+      ...defaultVisibleColumns,
+      ...prev
+    }));
+  }, []);
 
   // Add this handler function
   const handleColumnReorder = (result: DropResult) => {
@@ -381,10 +434,13 @@ function Main() {
         
         // Generate phoneNames object
         const phoneNamesData: { [key: number]: string } = {};
-        for (let i = 0; i <= phoneCount; i++) {
-          const phoneName = companyData[`phone${i}`];
+        for (let i = 0; i < phoneCount; i++) {
+          const phoneName = companyData[`phone${i + 1}`];
           if (phoneName) {
             phoneNamesData[i] = phoneName;
+          } else {
+            // Use default name if not found
+            phoneNamesData[i] = `Phone ${i + 1}`;
           }
         }
         
@@ -663,7 +719,18 @@ const resetSort = () => {
       const q = query(contactsRef,);
   
       const querySnapshot = await getDocs(q);
-      const fetchedContacts = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contact));
+      const fetchedContacts = querySnapshot.docs.map(doc => {
+        const contactData = doc.data();
+        
+        // Filter out empty tags
+        if (contactData.tags) {
+          contactData.tags = contactData.tags.filter((tag: any) => 
+            tag && tag.trim() !== '' && tag !== null && tag !== undefined
+          );
+        }
+        
+        return { id: doc.id, ...contactData } as Contact;
+      });
       
       // Function to check if a chat_id is for an individual contact
       const isIndividual = (chat_id: string | undefined) => {
@@ -1341,6 +1408,9 @@ const handleConfirmDeleteTag = async () => {
       userName = userData.name;
       setShowAddUserButton(userData.role === "1");
       setUserRole(userData.role); // Set the user's role
+      
+      // Set companyId state
+      setCompanyId(companyId);
 
       const docRef = doc(firestore, 'companies', companyId);
       const docSnapshot = await getDoc(docRef);
@@ -1350,9 +1420,10 @@ const handleConfirmDeleteTag = async () => {
       }
       const companyData = docSnapshot.data();
       
+      // Fetch phone names data
+      await fetchPhoneIndex(companyId);
       
       setStopbot(companyData.stopbot || false);
-      
       
       const employeeRef = collection(firestore, `companies/${companyId}/employee`);
       const employeeSnapshot = await getDocs(employeeRef);
@@ -1782,7 +1853,7 @@ if (matchingTemplate) {
      } else {
        toast.info(`Tag "${tagName}" already exists for this contact`);
      }
-    } catch (error) {
+     } catch (error) {
       console.error('Error adding tag to contact:', error);
       toast.error('Failed to add tag to contact');
     }
@@ -2168,8 +2239,8 @@ if (matchingTemplate) {
 
   const navigate = useNavigate(); // Initialize useNavigate
   const handleClick = (phone: any) => {
-const tempphone = phone.split('+')[1];
-const chatId = tempphone + "@c.us"
+  const tempphone = phone.split('+')[1];
+  const chatId = tempphone + "@c.us"
     navigate(`/chat/?chatId=${chatId}`);
   };
   async function searchContacts(accessToken: string, locationId: string) {
@@ -2397,10 +2468,23 @@ const chatId = tempphone + "@c.us"
       toast.error("No contacts selected for deletion.");
       return;
     }
+    
+    // Set loading state and show initial notification
+    setIsMassDeleting(true);
+    toast.info(`Starting to delete ${selectedContacts.length} contacts. This may take some time...`);
+    
+    // Optimistic UI update - remove contacts immediately for better UX
+    setContacts(prevContacts => 
+      prevContacts.filter(contact => 
+        !selectedContacts.some(selected => selected.id === contact.id)
+      )
+    );
+    
     try {
       const user = auth.currentUser;
       if (!user) {
         console.error('No authenticated user');
+        setIsMassDeleting(false);
         return;
       }
   
@@ -2408,15 +2492,19 @@ const chatId = tempphone + "@c.us"
       const docUserSnapshot = await getDoc(docUserRef);
       if (!docUserSnapshot.exists()) {
         console.error('No such document for user!');
+        setIsMassDeleting(false);
         return;
       }
+  
       const userData = docUserSnapshot.data();
       const companyId = userData.companyId;
       const docRef = doc(firestore, 'companies', companyId);
       const docSnapshot = await getDoc(docRef);
-      if (!docSnapshot.exists()) throw new Error('No company document found');
-      const companyData = docSnapshot.data();
-      const baseUrl = companyData.apiUrl || 'https://mighty-dane-newly.ngrok-free.app';
+      if (!docSnapshot.exists()) {
+        console.error('No such document for company!');
+        setIsMassDeleting(false);
+        return;
+      }
   
       // Get all active templates once
       const templatesRef = collection(firestore, `companies/${companyId}/followUpTemplates`);
@@ -2430,9 +2518,22 @@ const chatId = tempphone + "@c.us"
   
       // Create batch for contact deletion
       const batch = writeBatch(firestore);
+
+      const companyData = docSnapshot.data();
+      const baseUrl = companyData.apiUrl || 'https://mighty-dane-newly.ngrok-free.app';
+
   
       // Process each contact
+      let contactsProcessed = 0;
+      const totalToProcess = selectedContacts.length;
+      
       for (const contact of selectedContacts) {
+        // Show progress to user
+        contactsProcessed++;
+        if (contactsProcessed % 50 === 0 || contactsProcessed === totalToProcess) {
+          toast.info(`Processing ${contactsProcessed} of ${totalToProcess} contacts...`, 
+            { autoClose: 2000, updateId: "mass-delete-progress" });
+        }
         // Remove follow-up templates
         for (const template of activeTemplates) {
           try {
@@ -2525,6 +2626,11 @@ const chatId = tempphone + "@c.us"
     } catch (error) {
       console.error('Error deleting contacts:', error);
       toast.error("An error occurred while deleting the contacts and associated messages.");
+      // Refresh to get accurate data
+      fetchContacts();
+    } finally {
+      // Always reset loading state
+      setIsMassDeleting(false);
     }
   };
 
@@ -2722,8 +2828,16 @@ const sendBlastMessage = async () => {
     return;
   }
 
+  // Set phoneIndex to 0 if it's null or undefined
   if (phoneIndex === undefined || phoneIndex === null) {
-    toast.error("Please select a phone to send from");
+    setPhoneIndex(0);
+  }
+
+  const effectivePhoneIndex = phoneIndex ?? 0;
+
+  // Check if the selected phone is connected
+  if (!qrCodes[effectivePhoneIndex] || !['ready', 'authenticated'].includes(qrCodes[effectivePhoneIndex].status?.toLowerCase())) {
+    toast.error("Selected phone is not connected. Please select a connected phone.");
     return;
   }
 
@@ -2795,24 +2909,42 @@ const sendBlastMessage = async () => {
       return phoneNumber ? phoneNumber + "@c.us" : null;
     }).filter(chatId => chatId !== null);
 
-    // Format the data in the original structure with support for multiple messages
+    // FIXED: Restructured to avoid duplicate message sends
+    // Instead of having both 'message' and 'messages', we'll only use 'messages'
+    // and make sure the server only processes this array
+    const allMessages = [];
+    
+    // Add first message to the array, which was previously in 'message' field
+    if (messages.length > 0 && messages[0].text.trim()) {
+      allMessages.push({
+        text: messages[0].text,
+        isMain: true, // Flag to indicate it's the main message
+        delayAfter: 0
+      });
+    }
+    
+    // Add additional messages
+    if (messages.length > 1) {
+      messages.slice(1).forEach((msg, idx) => {
+        if (msg.text.trim()) {
+          allMessages.push({
+            text: msg.text,
+            isMain: false,
+            delayAfter: msg.delayAfter || 0
+          });
+        }
+      });
+    }
+
     const scheduledMessageData = {
       chatIds,
       phoneIndex,
-      // First message goes in the original message field
-      message: messages[0].text,
-      // Additional messages go in the messages array
-      messages: messages.slice(1).map(msg => ({
-        text: msg.text
-      })),
+      // Remove the duplicate message field since we're using the consolidated messages array
+      messages: allMessages, // This will contain all messages including the main message
       messageDelays: messages.slice(1).map(msg => msg.delayAfter),
       batchQuantity,
       companyId,
       createdAt: Timestamp.now(),
-      documentUrl,
-      fileName,
-      mediaUrl,
-      mimeType,
       repeatInterval,
       repeatUnit,
       scheduledTime: Timestamp.fromDate(new Date(
@@ -2835,12 +2967,72 @@ const sendBlastMessage = async () => {
         end: activeTimeEnd
       },
       infiniteLoop,
-      numberOfBatches: 1
+      numberOfBatches: 1,
+      // Flag to indicate the new message structure to avoid duplicates
+      isConsolidated: true
     };
 
+    // If there's media, send it first
+    if (mediaUrl || documentUrl) {
+      // Set media message to be sent 1 minute before the text messages
+      const mediaScheduledTime = new Date(
+        blastStartDate.getFullYear(),
+        blastStartDate.getMonth(),
+        blastStartDate.getDate(),
+        blastStartTime?.getHours() || 0,
+        (blastStartTime?.getMinutes() || 0) - 1 // Schedule 1 minute earlier
+      );
 
+      const mediaMessageData = {
+        chatIds,
+        phoneIndex,
+        mediaUrl,
+        documentUrl,
+        fileName,
+        mimeType,
+        message: '', // No caption
+        companyId,
+        createdAt: Timestamp.now(),
+        scheduledTime: Timestamp.fromDate(mediaScheduledTime),
+        status: "scheduled",
+        v2: isV2,
+        whapiToken: isV2 ? null : whapiToken,
+        batchQuantity: batchQuantity || 1,
+        minDelay: minDelay || 0,
+        maxDelay: maxDelay || 0,
+        // Add these required fields that were missing
+        repeatInterval: 0,
+        repeatUnit: 'days',
+        activateSleep: false,
+        sleepAfterMessages: null,
+        sleepDuration: null,
+        activeHours: {
+          start: activeTimeStart,
+          end: activeTimeEnd
+        },
+        infiniteLoop: false,
+        numberOfBatches: 1,
+        messages: [], // Empty array for additional messages
+        messageDelays: [], // Empty array for delays
+        isConsolidated: true // Add this flag for the new structure
+      };
 
-    // Make API call to schedule the messages
+      try {
+        // Send media first
+        const mediaResponse = await axios.post(`${baseUrl}/api/schedule-message/${companyId}`, mediaMessageData);
+        if (!mediaResponse.data.success) {
+          throw new Error(mediaResponse.data.message || "Failed to schedule media message");
+        }
+      } catch (error) {
+        console.error('Error scheduling media message:', error);
+        if (axios.isAxiosError(error) && error.response?.data) {
+          console.error('Server error details:', error.response.data);
+        }
+        throw error; // Re-throw to be caught by outer try-catch
+      }
+    }
+
+    // Then schedule the text messages with original scheduled time
     const response = await axios.post(`${baseUrl}/api/schedule-message/${companyId}`, scheduledMessageData);
 
     if (response.data.success) {
@@ -2884,7 +3076,7 @@ const resetForm = () => {
   setActivateSleep(false);
   setSleepAfterMessages(10);
   setSleepDuration(30);
-};
+  };
 
   const sendImageMessage = async (id: string, imageUrl: string,caption?: string) => {
     try {
@@ -3215,33 +3407,64 @@ const resetForm = () => {
       const companyData = docSnapshot.data();
       const baseUrl = companyData.apiUrl || 'https://mighty-dane-newly.ngrok-free.app';
   
-      // Send messages to all recipients
-      const sendPromises = message.chatIds.map(async (chatId: string) => {
-        const response = await fetch(`${baseUrl}/api/v2/messages/text/${companyId}/${chatId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: message.message || '',
-            phoneIndex: message.phoneIndex || userData.phone || 0,
-            userName: userData.name || userData.email || ''
-          }),
+      // FIXED: Handle consolidated message structure to avoid duplicate sends
+      // Handle the new consolidated message structure
+      const isConsolidated = message.isConsolidated === true;
+      
+      // If using consolidated structure, only process the messages array
+      if (isConsolidated && Array.isArray(message.messages) && message.messages.length > 0) {
+        // Send messages to all recipients with proper structure
+        const sendPromises = message.chatIds.map(async (chatId: string) => {
+          // Only send the main message or first message from the array
+          const mainMessage = message.messages.find((msg: any) => msg.isMain === true) || message.messages[0];
+          
+          const response = await fetch(`${baseUrl}/api/v2/messages/text/${companyId}/${chatId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: mainMessage.text || '',
+              phoneIndex: message.phoneIndex || userData.phone || 0,
+              userName: userData.name || userData.email || ''
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to send message to ${chatId}`);
+          }
         });
-  
-        if (!response.ok) {
-          throw new Error(`Failed to send message to ${chatId}`);
-        }
-      });
-  
-      // Wait for all messages to be sent
-      await Promise.all(sendPromises);
-  
+
+        // Wait for all messages to be sent
+        await Promise.all(sendPromises);
+      } else {
+        // Backward compatibility: Handle the old message structure
+        // Send messages to all recipients
+        const sendPromises = message.chatIds.map(async (chatId: string) => {
+          const response = await fetch(`${baseUrl}/api/v2/messages/text/${companyId}/${chatId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: message.message || '',
+              phoneIndex: message.phoneIndex || userData.phone || 0,
+              userName: userData.name || userData.email || ''
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to send message to ${chatId}`);
+          }
+        });
+
+        // Wait for all messages to be sent
+        await Promise.all(sendPromises);
+      }
+
       // Delete the scheduled message
       if (message.id) {
         await deleteDoc(doc(firestore, `companies/${companyId}/scheduledMessages/${message.id}`));
         // Update local state to remove the message
         setScheduledMessages(prev => prev.filter(msg => msg.id !== message.id));
       }
-  
+
       toast.success('Messages sent successfully!');
     } catch (error) {
       console.error('Error sending messages:', error);
@@ -3317,38 +3540,91 @@ const resetForm = () => {
     }
   };
 
+  interface BaseMessageContent {
+    text: string;
+    type: string;
+    url: string;
+    mimeType: string;
+    fileName: string;
+    caption: string;
+  }
+
+  interface MessageContent extends BaseMessageContent {
+    isMain?: boolean;
+    [key: string]: string | boolean | undefined;
+  }
+
   const handleSaveScheduledMessage = async () => {
-    if (!currentScheduledMessage) return;
-  
     try {
+      // Validate required fields
+      if (!blastMessage.trim()) {
+        toast.error("Message text cannot be empty");
+        return;
+      }
+
+      if (!currentScheduledMessage) {
+        toast.error("No message selected for editing");
+        return;
+      }
+
+      if (currentScheduledMessage.chatIds.length === 0) {
+        toast.error("No recipients for this message");
+        return;
+      }
+
+      // Upload new media or document if provided
+      let newMediaUrl = currentScheduledMessage.mediaUrl || '';
+      let newDocumentUrl = currentScheduledMessage.documentUrl || '';
+      let newFileName = currentScheduledMessage.fileName || '';
+
+      if (editMediaFile) {
+        try {
+          newMediaUrl = await uploadFile(editMediaFile);
+        } catch (error) {
+          console.error('Error uploading media file:', error);
+          toast.error("Failed to upload media file");
+          return;
+        }
+      }
+
+      if (editDocumentFile) {
+        try {
+          newDocumentUrl = await uploadFile(editDocumentFile);
+          newFileName = editDocumentFile.name;
+        } catch (error) {
+          console.error('Error uploading document file:', error);
+          toast.error("Failed to upload document file");
+          return;
+        }
+      }
+
+      // Get user data and API URL
       const user = auth.currentUser;
-      if (!user) return;
-  
+      if (!user) {
+        toast.error("User not authenticated");
+        return;
+      }
+
       const docUserRef = doc(firestore, 'user', user.email!);
       const docUserSnapshot = await getDoc(docUserRef);
-      if (!docUserSnapshot.exists()) return;
-  
+      if (!docUserSnapshot.exists()) {
+        toast.error("User data not found");
+        return;
+      }
+
       const userData = docUserSnapshot.data();
       const companyId = userData.companyId;
-      const docRef = doc(firestore, 'companies', companyId);
-      const docSnapshot = await getDoc(docRef);
-      if (!docSnapshot.exists()) throw new Error('No company document found');
-      const companyData = docSnapshot.data();
+
+      const companyRef = doc(firestore, 'companies', companyId);
+      const companySnapshot = await getDoc(companyRef);
+      if (!companySnapshot.exists()) {
+        toast.error("Company data not found");
+        return;
+      }
+
+      const companyData = companySnapshot.data();
       const baseUrl = companyData.apiUrl || 'https://mighty-dane-newly.ngrok-free.app';
-  
-      // Upload new media/document files if needed
-      let newMediaUrl = currentScheduledMessage.mediaUrl;
-      if (editMediaFile) {
-        newMediaUrl = await uploadFile(editMediaFile);
-      }
-  
-      let newDocumentUrl = currentScheduledMessage.documentUrl;
-      let newFileName = currentScheduledMessage.fileName;
-      if (editDocumentFile) {
-        newDocumentUrl = await uploadFile(editDocumentFile);
-        newFileName = editDocumentFile.name;
-      }
-  
+
       // Process messages for each contact
       const processedMessages = await Promise.all(
         currentScheduledMessage.chatIds.map(async (chatId) => {
@@ -3357,9 +3633,9 @@ const resetForm = () => {
           
           if (!contact) {
             console.warn(`No contact found for chatId: ${chatId}`);
-            return { text: blastMessage }; // Return unprocessed message as fallback
+            return { text: blastMessage, type: 'text' };
           }
-  
+
           // Process message with contact data
           let processedMessage = blastMessage
             .replace(/@{contactName}/g, contact.contactName || '')
@@ -3371,16 +3647,76 @@ const resetForm = () => {
             .replace(/@{branch}/g, contact.branch || '')
             .replace(/@{expiryDate}/g, contact.expiryDate || '')
             .replace(/@{ic}/g, contact.ic || '');
-  
-          return { text: processedMessage };
+
+          return { text: processedMessage, type: 'text' };
         })
       );
-  
+
+      // FIXED: Create a consolidated messages array
+      const consolidatedMessages = [];
+      
+      // Add media message if exists
+      if (newMediaUrl) {
+        consolidatedMessages.push({
+          type: 'media',
+          text: '', // Required by interface
+          url: newMediaUrl || '',
+          mimeType: editMediaFile?.type || currentScheduledMessage.mimeType || '',
+          caption: '', // You can add caption if needed
+          fileName: '', // Required by index signature
+          isMain: false
+        });
+      }
+
+      // Add document message if exists
+      if (newDocumentUrl) {
+        consolidatedMessages.push({
+          type: 'document',
+          text: '', // Required by interface
+          url: newDocumentUrl || '',
+          fileName: newFileName || '',
+          mimeType: editDocumentFile?.type || currentScheduledMessage.mimeType || '',
+          caption: '', // You can add caption if needed
+          isMain: false
+        });
+      }
+
+      // Add main text message
+      consolidatedMessages.push({
+        type: 'text',
+        text: blastMessage,
+        url: '',
+        mimeType: '',
+        fileName: '',
+        caption: '',
+        isMain: true
+      });
+
+      // Ensure scheduledTime is a proper Firestore Timestamp
+      let scheduledTime: any = currentScheduledMessage.scheduledTime;
+      if (!(scheduledTime instanceof Timestamp)) {
+        // If it's a date object
+        if (scheduledTime instanceof Date) {
+          scheduledTime = Timestamp.fromDate(scheduledTime);
+        }
+        // If it's a timestamp-like object with seconds and nanoseconds
+        else if (scheduledTime && typeof scheduledTime === 'object' && 'seconds' in scheduledTime) {
+          scheduledTime = new Timestamp(
+            scheduledTime.seconds as number,
+            (scheduledTime as { nanoseconds?: number }).nanoseconds || 0
+          );
+        }
+        // If it's something else, default to current time
+        else {
+          scheduledTime = Timestamp.now();
+        }
+      }
+
       // Prepare the updated message data
       const updatedMessageData: ScheduledMessage = {
         ...currentScheduledMessage,
         message: blastMessage, // Store the main message
-        messages: processedMessages.slice(1), // Store additional messages if any
+        messages: consolidatedMessages, // Use the consolidated messages array
         messageDelays: currentScheduledMessage.messageDelays || [],
         batchQuantity: currentScheduledMessage.batchQuantity || 10,
         createdAt: currentScheduledMessage.createdAt || Timestamp.now(),
@@ -3390,7 +3726,7 @@ const resetForm = () => {
         mimeType: editMediaFile ? editMediaFile.type : (editDocumentFile ? editDocumentFile.type : currentScheduledMessage.mimeType),
         repeatInterval: currentScheduledMessage.repeatInterval || 0,
         repeatUnit: currentScheduledMessage.repeatUnit || 'days',
-        scheduledTime: currentScheduledMessage.scheduledTime,
+        scheduledTime: scheduledTime,
         status: 'scheduled',
         v2: currentScheduledMessage.v2 || false,
         whapiToken: currentScheduledMessage.whapiToken || undefined,
@@ -3402,15 +3738,16 @@ const resetForm = () => {
         activeHours: currentScheduledMessage.activeHours || { start: '09:00', end: '17:00' },
         infiniteLoop: currentScheduledMessage.infiniteLoop || false,
         numberOfBatches: currentScheduledMessage.numberOfBatches || 1,
-        chatIds: currentScheduledMessage.chatIds
+        chatIds: currentScheduledMessage.chatIds,
+        isConsolidated: true // Add the flag to indicate this is using the new structure
       };
-  
+
       // Send PUT request to update the scheduled message
       const response = await axios.put(
         `${baseUrl}/api/schedule-message/${companyId}/${currentScheduledMessage.id}`,
         updatedMessageData
       );
-  
+
       if (response.status === 200) {
         // Update local state
         setScheduledMessages(prev => 
@@ -3420,7 +3757,7 @@ const resetForm = () => {
               : msg
           )
         );
-  
+
         setEditScheduledMessageModal(false);
         setEditMediaFile(null);
         setEditDocumentFile(null);
@@ -3431,7 +3768,7 @@ const resetForm = () => {
       } else {
         throw new Error("Failed to update scheduled message");
       }
-  
+
     } catch (error) {
       console.error("Error updating scheduled message:", error);
       toast.error("Failed to update scheduled message.");
@@ -3517,21 +3854,25 @@ const resetForm = () => {
     if (contacts.length > 0) {
       const firstContact = contacts[0];
       
-      // Update visible columns
-      setVisibleColumns(prev => ({
-        ...prev,
-        ...(firstContact.customFields ? 
-          Object.keys(firstContact.customFields).reduce((acc, field) => ({
-            ...acc,
-            [field]: true
-          }), {})
-        : {})
-      }));
+      // Only add new custom fields to visible columns
+      if (firstContact.customFields) {
+        setVisibleColumns(prev => {
+          const newColumns = { ...prev };
+          Object.keys(firstContact.customFields || {}).forEach(field => {
+            if (!(field in prev)) {
+              newColumns[field] = true;
+            }
+          });
+          // Save to localStorage after updating
+          localStorage.setItem('contactsVisibleColumns', JSON.stringify(newColumns));
+          return newColumns;
+        });
+      }
 
       // Update column order if new fields are found
       setColumnOrder(prev => {
         const customFields = firstContact.customFields ? 
-          Object.keys(firstContact.customFields).map(field => `customField_${field}`) 
+          Object.keys(firstContact.customFields).map(field => `customField_${field}`)
           : [];
         
         const existingCustomFields = prev.filter(col => col.startsWith('customField_'));
@@ -3541,7 +3882,9 @@ const resetForm = () => {
         
         // Remove existing custom fields and add all custom fields before 'actions'
         const baseColumns = prev.filter(col => !col.startsWith('customField_') && col !== 'actions');
-        return [...baseColumns, ...customFields, 'actions'];
+        const newOrder = [...baseColumns, ...customFields, 'actions'];
+        localStorage.setItem('contactsColumnOrder', JSON.stringify(newOrder));
+        return newOrder;
       });
     }
   }, [contacts]);
@@ -3549,9 +3892,15 @@ const resetForm = () => {
 
   const renderTags = (tags: string[] | undefined, contact: Contact) => {
     if (!tags || tags.length === 0) return null;
+    
+    // Filter out empty tags
+    const filteredTags = tags.filter(tag => tag && tag.trim() !== '');
+    
+    if (filteredTags.length === 0) return null;
+    
     return (
       <div className="flex flex-wrap gap-1 mt-1">
-        {tags.map((tag, index) => (
+        {filteredTags.map((tag, index) => (
           <span
             key={index}
             className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -3625,13 +3974,32 @@ const resetForm = () => {
     // Remove all non-numeric characters except '+'
     let cleaned = phone.replace(/[^0-9+]/g, '');
     
-    // If already starts with +, validate length and return
+    // If already starts with +
     if (cleaned.startsWith('+')) {
+      // Check if there's a country code after the +
+      if (cleaned.charAt(1) === '0') {
+        // If it starts with +0, add 6 after the + and before the 0
+        cleaned = `+6${cleaned.substring(1)}`;
+      } else if (!/^\+[1-9]/.test(cleaned)) {
+        // If there's no digit after +, add 6
+        cleaned = `+6${cleaned.substring(1)}`;
+      }
       return cleaned.length >= 10 ? cleaned : null;
     }
     
-    // Add + prefix if missing
-    return cleaned.length >= 10 ? `+${cleaned}` : null;
+    // Check if the number starts with a valid country code (like 60, 65, 62, etc.)
+    if (/^(60|65|62|61|63|66|84|95|855|856|91|92|93|94|977|880|81|82|86|886|852|853|1|44|33|49|39|7|34|55|52|54|56|57|58|61|64|27|20|212|213|216|218|220|221|222|223|224|225|226|227|228|229|230|231|232|233|234|235|236|237|238|239|240|241|242|243|244|245|246|247|248|249|250|251|252|253|254|255|256|257|258|260|261|262|263|264|265|266|267|268|269|290|291|297|298|299|350|351|352|353|354|355|356|357|358|359|370|371|372|373|374|375|376|377|378|379|380|381|382|383|385|386|387|388|389|420|421|423|500|501|502|503|504|505|506|507|508|509|590|591|592|593|594|595|596|597|598|599|670|672|673|674|675|676|677|678|679|680|681|682|683|685|686|687|688|689|690|691|692|850|852|853|855|856|870|871|872|873|874|878|880|881|882|883|886|888|960|961|962|963|964|965|966|967|968|970|971|972|973|974|975|976|977|992|993|994|995|996|998)/.test(cleaned)) {
+      return cleaned.length >= 10 ? `+${cleaned}` : null;
+    }
+    
+    // For numbers without + prefix
+    if (cleaned.startsWith('0')) {
+      // If it starts with 0, add +6 before the number
+      return cleaned.length >= 9 ? `+6${cleaned}` : null;
+    }
+    
+    // Add +6 prefix for Malaysian numbers if missing + prefix
+    return cleaned.length >= 9 ? `+6${cleaned}` : null;
   };
   
   const parseCSV = async (): Promise<Array<any>> => {
@@ -3727,118 +4095,163 @@ const resetForm = () => {
         'postalCode': ['postalcode', 'postal code', 'zip', 'zip code', 'postcode'],
         'country': ['country', 'nation'],
         'branch': ['branch', 'department', 'location'],
-        'expiryDate': ['expirydate', 'expiry date', 'expiration', 'expire date'],
+        'expiryDate': ['expirydate', 'expiry date', 'expiration', 'expire date', 'expiry', 'expiryDate'],
         'vehicleNumber': ['vehiclenumber', 'vehicle number', 'vehicle no', 'car number'],
         'points': ['points', 'reward points'],
-        'IC': ['ic', 'identification', 'id number'],
-        'Notes': ['notes', 'note', 'comments', 'remarks'] // Added Notes field mapping
+        'ic': ['ic', 'identification', 'id number', 'IC'],
+        'Notes': ['notes', 'note', 'comments', 'remarks']
       };
   
        // Validate and prepare contacts for import
       const validContacts = csvContacts.map(contact => {
         const baseContact: any = {
           customFields: {},
-          tags: [...selectedImportTags], // Add selected import tags here
+          tags: [...selectedImportTags],
           updatedAt: Timestamp.now(),
           updatedBy: user.email,
           createdAt: Timestamp.now(),
-          createdBy: user.email
+          createdBy: user.email,
+          // Initialize these fields explicitly
+          ic: null,
+          expiryDate: null,
+          vehicleNumber: null,
+          branch: null,
+          contactName: null,
+          email: null,
+          phone: null,
+          address1: null
         };
 
         // Process each field in the CSV contact
-      Object.entries(contact).forEach(([header, value]) => {
-        const headerLower = header.toLowerCase().trim();
-        
-                // Check if the header is a tag column (tag 1 through tag 10)
-                const tagMatch = headerLower.match(/^tag\s*(\d+)$/);
-                if (tagMatch && Number(tagMatch[1]) <= 10) {
-                  // If value exists and isn't empty, add it to tags array
-                  if (value && typeof value === 'string' && value.trim()) {
-                    baseContact.tags.push(value.trim());
-                  }
-                  return; // Skip further processing for tag columns
-                }
-        
-        // Try to match with standard fields
-        let matched = false;
-        for (const [fieldName, aliases] of Object.entries(standardFields)) {
-          // Convert both the header and aliases to lowercase for comparison
-          if (aliases.includes(headerLower) || headerLower === fieldName.toLowerCase()) {
-            if (fieldName === 'phone') {
-              const cleanedPhone = cleanPhoneNumber(value as string);
-              if (cleanedPhone) {
-                baseContact[fieldName] = cleanedPhone;
-              }
-            } else if (fieldName === 'Notes') {
-              // Ensure Notes field is properly capitalized
-              baseContact['Notes'] = value || '';
-            } else {
-              baseContact[fieldName] = value || '';
+        Object.entries(contact).forEach(([header, value]) => {
+          const headerLower = header.toLowerCase().trim();
+          
+          // Debug logging
+          console.log('Processing header:', header, 'with value:', value);
+          
+          // Check if the header is a tag column (tag 1 through tag 10)
+          const tagMatch = headerLower.match(/^tag\s*(\d+)$/);
+          if (tagMatch && Number(tagMatch[1]) <= 10) {
+            if (value && typeof value === 'string' && value.trim()) {
+              baseContact.tags.push(value.trim());
             }
-            matched = true;
-            break;
+            return;
           }
-        }
+          
+          // Try to match with standard fields
+          let matched = false;
+          for (const [fieldName, aliases] of Object.entries(standardFields)) {
+            // Convert both the header and aliases to lowercase for comparison
+            const fieldNameLower = fieldName.toLowerCase();
+            if (aliases.map(a => a.toLowerCase()).includes(headerLower) || headerLower === fieldNameLower) {
+              console.log('Matched field:', fieldName, 'for header:', header); // Debug logging
+              
+              if (fieldName === 'phone') {
+                const cleanedPhone = cleanPhoneNumber(value as string);
+                if (cleanedPhone) {
+                  baseContact[fieldName] = cleanedPhone;
+                  console.log(`Set phone to: ${cleanedPhone}`);
+                }
+              } else if (fieldName === 'Notes') {
+                baseContact['Notes'] = value || '';
+              } else if (fieldName === 'expiryDate' || fieldName === 'ic') {
+                // Handle these fields explicitly and log the assignment
+                baseContact[fieldName] = value || null;
+                console.log(`Setting ${fieldName} to:`, value);
+              } else {
+                baseContact[fieldName] = value || '';
+                console.log(`Set ${fieldName} to: ${value}`);
+              }
+              matched = true;
+              break;
+            }
+          }
 
-        // If no match found and value exists, add as custom field
-        if (!matched && value && !header.match(/^\d+$/)) {
-          baseContact.customFields[header] = value;
-        }
+          // If no match found and value exists, add as custom field
+          if (!matched && value && !header.match(/^\d+$/)) {
+            console.log('Adding as custom field:', header); // Debug logging
+            baseContact.customFields[header] = value;
+          }
+        });
+
+        // Debug logging for final contact
+        console.log('Final contact object:', JSON.stringify(baseContact, null, 2));
+
+        baseContact.tags = [...new Set(baseContact.tags)];
+        return baseContact;
       });
 
-      baseContact.tags = [...new Set(baseContact.tags)];
+      // Log the first contact after processing
+      if (validContacts.length > 0) {
+        console.log('First processed contact:', JSON.stringify(validContacts[0], null, 2));
+      }
 
-
-      return baseContact;
-    });
-  
       // Filter out contacts without valid phone numbers
-      const validContactsWithPhone = validContacts.filter(contact => contact.phone);
-  
-      if (validContactsWithPhone.length === 0) {
+      const contactsWithValidPhones = validContacts.filter(contact => contact.phone);
+
+      if (contactsWithValidPhones.length === 0) {
         throw new Error('No valid contacts found in CSV. Please ensure phone numbers are present.');
       }
-  
-      if (validContactsWithPhone.length < validContacts.length) {
-        toast.warning(`Skipped ${validContacts.length - validContactsWithPhone.length} contacts due to invalid phone numbers.`);
+
+      if (contactsWithValidPhones.length < validContacts.length) {
+        toast.warning(`Skipped ${validContacts.length - contactsWithValidPhones.length} contacts due to invalid phone numbers.`);
       }
-  
+
       // Create contacts in batches
       const batchSize = 500;
       const batches = [];
-      
-      for (let i = 0; i < validContactsWithPhone.length; i += batchSize) {
+
+      for (let i = 0; i < contactsWithValidPhones.length; i += batchSize) {
         const batch = writeBatch(firestore);
-        const batchContacts = validContactsWithPhone.slice(i, i + batchSize);
-  
+        const batchContacts = contactsWithValidPhones.slice(i, i + batchSize);
+
         for (const contact of batchContacts) {
           const contactRef = doc(firestore, `companies/${companyId}/contacts`, contact.phone);
           batch.set(contactRef, contact, { merge: true });
         }
-  
+
         batches.push(batch.commit());
       }
   
       await Promise.all(batches);
-  
+
       // Update UI with new custom fields
       const newCustomFields = new Set<string>();
-      validContactsWithPhone.forEach(contact => {
-        Object.keys(contact.customFields).forEach(field => newCustomFields.add(field));
+      const standardFieldsToShow = new Set<string>();
+
+      // Add all standard fields that have data
+      contactsWithValidPhones.forEach((contact: Contact) => {
+        // Add custom fields
+        Object.keys(contact.customFields || {}).forEach(field => newCustomFields.add(field));
+        
+        // Add standard fields that have values
+        Object.entries(contact).forEach(([key, value]) => {
+          if (value !== null && value !== undefined && key !== 'customFields' && key !== 'tags' && 
+              key !== 'updatedAt' && key !== 'updatedBy' && key !== 'createdAt' && key !== 'createdBy') {
+            standardFieldsToShow.add(key);
+          }
+        });
       });
-  
-      if (newCustomFields.size > 0) {
+
+      // Update visible columns with both standard and custom fields
+      if (newCustomFields.size > 0 || standardFieldsToShow.size > 0) {
         setVisibleColumns(prev => ({
           ...prev,
+          // Add standard fields
+          ...Array.from(standardFieldsToShow).reduce((acc, field) => ({
+            ...acc,
+            [field]: true
+          }), {}),
+          // Add custom fields
           ...Array.from(newCustomFields).reduce((acc, field) => ({
             ...acc,
             [field]: true
           }), {})
         }));
       }
-  
+
       // Success cleanup
-      toast.success(`Successfully imported ${validContactsWithPhone.length} contacts!`);
+      toast.success(`Successfully imported ${contactsWithValidPhones.length} contacts!`);
       setShowCsvImportModal(false);
       setSelectedCsvFile(null);
       setSelectedImportTags([]);
@@ -3856,18 +4269,77 @@ const resetForm = () => {
 
   // Add these to your existing state declarations
   const [qrCodes, setQrCodes] = useState<QRCodeData[]>([]);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [selectedPhone, setSelectedPhone] = useState<number | null>(null);
 
-  // Add this helper function
-  const getPhoneName = (phoneIndex: number) => {
-    if (companyId === '0123') {
-      return phoneIndex === 0 ? 'Revotrend' : phoneIndex === 1 ? 'Storeguru' : 'ShipGuru';
+  // Add this helper function to get status color and text
+  const getStatusInfo = (status: string) => {
+    const statusLower = status?.toLowerCase() || '';
+    
+    // Check if the phone is connected (consistent with Chat component)
+    const isConnected = statusLower === 'ready' || statusLower === 'authenticated';
+    
+    if (isConnected) {
+      return {
+        color: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
+        text: 'Connected',
+        icon: 'CheckCircle' as const
+      };
     }
-    return `Phone ${phoneIndex + 1}`;
+    
+    // For other statuses, provide more detailed information
+    switch (statusLower) {
+      case 'qr':
+        return {
+          color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-200',
+          text: 'Needs QR Scan',
+          icon: 'QrCode' as const
+        };
+      case 'connecting':
+        return {
+          color: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200',
+          text: 'Connecting',
+          icon: 'Loader' as const
+        };
+      case 'disconnected':
+        return {
+          color: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
+          text: 'Disconnected',
+          icon: 'XCircle' as const
+        };
+      default:
+        return {
+          color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
+          text: 'Not Connected',  // Changed from 'Unknown' to 'Not Connected' to match Chat component
+          icon: 'HelpCircle' as const
+        };
+    }
   };
 
+  // Add this helper function to get phone name
+  const getPhoneName = (phoneIndex: number) => {
+    // First check if we have a name in the phoneNames object
+    if (phoneNames[phoneIndex]) {
+      return phoneNames[phoneIndex];
+    }
+    
+    // If not found in phoneNames but we have a special company ID, use predefined names
+    if (companyId === '0123') {
+      if (phoneIndex === 0) return 'Revotrend';
+      if (phoneIndex === 1) return 'Storeguru';
+      if (phoneIndex === 2) return 'ShipGuru';
+      return `Phone ${phoneIndex + 1}`;
+    }
+    
+    // Default fallback - consistent with Chat component
+    return "Select a phone";
+  };
+
+  // Add this effect to fetch phone statuses periodically
   useEffect(() => {
     const fetchPhoneStatuses = async () => {
       try {
+        setIsLoadingStatus(true);
         const docRef = doc(firestore, 'companies', companyId);
         const docSnapshot = await getDoc(docRef);
         
@@ -3889,22 +4361,37 @@ const resetForm = () => {
         });
 
         if (botStatusResponse.status === 200) {
+          // Ensure we always have an array of QR codes
           const qrCodesData = Array.isArray(botStatusResponse.data) 
             ? botStatusResponse.data 
-            : [];
+            : botStatusResponse.data ? [botStatusResponse.data] : [];
+          
           setQrCodes(qrCodesData);
+
+          // If no phone is selected and we have connected phones, select the first connected one
+          if (selectedPhone === null) {
+            const connectedPhoneIndex = qrCodesData.findIndex(
+              phone => phone.status === 'ready' || phone.status === 'authenticated'
+            );
+            if (connectedPhoneIndex !== -1) {
+              setSelectedPhone(connectedPhoneIndex);
+            }
+          }
         }
       } catch (error) {
         console.error('Error fetching phone statuses:', error);
+      } finally {
+        setIsLoadingStatus(false);
       }
     };
 
     if (companyId) {
       fetchPhoneStatuses();
+      // Refresh status every 30 seconds
+      const intervalId = setInterval(fetchPhoneStatuses, 30000);
+      return () => clearInterval(intervalId);
     }
-  }, [companyId]);
-
-  
+  }, [companyId, selectedPhone]);
 
   const filterRecipients = (chatIds: string[], search: string) => {
     return chatIds.filter(chatId => {
@@ -4969,9 +5456,11 @@ const getFilteredScheduledMessages = () => {
                 contact: true,
                 phone: true,
                 tags: true,
-                points: true,
+                ic: true,
+                expiryDate: true,
+                vehicleNumber: true,
+                branch: true,
                 notes: true,
-                actions: true,
                 // Add any other default columns you want to include
               });
             }
@@ -5064,9 +5553,7 @@ const getFilteredScheduledMessages = () => {
                                 {columnId === 'checkbox' && (
                                   <input
                                     type="checkbox"
-                                    checked={currentContacts.length > 0 && currentContacts.every(contact => 
-                                      selectedContacts.some(sc => sc.phone === contact.phone)
-                                    )}
+                                    checked={currentContacts.length > 0 && currentContacts.every(contact => selectedContacts.some(c => c.phone === contact.phone))}
                                     onChange={() => handleSelectCurrentPage()}
                                     className="rounded border-gray-300"
                                   />
@@ -5106,6 +5593,62 @@ const getFilteredScheduledMessages = () => {
                                   >
                                     Tags
                                     {sortField === 'tags' && (
+                                      <Lucide 
+                                        icon={sortDirection === 'asc' ? 'ChevronUp' : 'ChevronDown'} 
+                                        className="w-4 h-4 ml-1"
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                                {columnId === 'ic' && (
+                                  <div 
+                                    className="flex items-center"
+                                    onClick={() => handleSort('ic')}
+                                  >
+                                    IC
+                                    {sortField === 'ic' && (
+                                      <Lucide 
+                                        icon={sortDirection === 'asc' ? 'ChevronUp' : 'ChevronDown'} 
+                                        className="w-4 h-4 ml-1"
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                                {columnId === 'expiryDate' && (
+                                  <div 
+                                    className="flex items-center"
+                                    onClick={() => handleSort('expiryDate')}
+                                  >
+                                    Expiry Date
+                                    {sortField === 'expiryDate' && (
+                                      <Lucide 
+                                        icon={sortDirection === 'asc' ? 'ChevronUp' : 'ChevronDown'} 
+                                        className="w-4 h-4 ml-1"
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                                {columnId === 'vehicleNumber' && (
+                                  <div 
+                                    className="flex items-center"
+                                    onClick={() => handleSort('vehicleNumber')}
+                                  >
+                                    Vehicle Number
+                                    {sortField === 'vehicleNumber' && (
+                                      <Lucide 
+                                        icon={sortDirection === 'asc' ? 'ChevronUp' : 'ChevronDown'} 
+                                        className="w-4 h-4 ml-1"
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                                {columnId === 'branch' && (
+                                  <div 
+                                    className="flex items-center"
+                                    onClick={() => handleSort('branch')}
+                                  >
+                                    Branch
+                                    {sortField === 'branch' && (
                                       <Lucide 
                                         icon={sortDirection === 'asc' ? 'ChevronUp' : 'ChevronDown'} 
                                         className="w-4 h-4 ml-1"
@@ -5289,6 +5832,16 @@ const getFilteredScheduledMessages = () => {
                               </button>
                             </div>
                           )}
+                          {columnId === 'ic' && (
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {contact.ic || '-'}
+                            </span>
+                          )}
+                          {columnId === 'expiryDate' && (
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {contact.expiryDate || '-'}
+                            </span>
+                          )}
                           {columnId.startsWith('customField_') && (
                             <span className="text-gray-600 dark:text-gray-400">
                               {contact.customFields?.[columnId.replace('customField_', '')] || '-'}
@@ -5394,7 +5947,7 @@ const getFilteredScheduledMessages = () => {
                                 </span>
                                 <button
                                   className="absolute right-0 top-0 transform translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-red-500 hover:text-red-700"
-                                  onClick={(e) => {
+                                onClick={(e) => {
                                     e.stopPropagation();
                                     handleRemoveTag(contact.id!, tag);
                                   }}
@@ -6217,40 +6770,39 @@ const getFilteredScheduledMessages = () => {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300" htmlFor="phone">
               Phone
             </label>
-            <select
-              id="phone"
-              name="phone"
-              value={phoneIndex}
-              onChange={(e) => setPhoneIndex(parseInt(e.target.value))}
-              className="mt-1 text-black dark:text-white border-primary dark:border-primary-dark bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-2 focus:ring-blue-300 dark:focus:ring-blue-700 rounded-lg text-sm w-full"
-            >
-              <option value="">Select a phone</option>
-              {Object.entries(phoneNames).map(([index, phoneName]) => {
-                return (
-                  <option 
-                    key={index} 
-                    value={parseInt(index) - 1}
-                  >
-                    {phoneName}
-                  </option>
-                );
-              })}
-            </select>
-            {phoneIndex !== null && phoneIndex >= 0 && (
-              <div className="mt-1">
-                <span 
-                  className={
-                    qrCodes[phoneIndex]?.status === 'ready' || qrCodes[phoneIndex]?.status === 'authenticated'
-                      ? 'text-green-600 text-sm'
-                      : 'text-red-600 text-sm'
-                  }
-                >
-                  Status: {
-                    qrCodes[phoneIndex]?.status === 'ready' || qrCodes[phoneIndex]?.status === 'authenticated'
-                      ? 'Connected'
-                      : 'Not Connected'
-                  }
-                </span>
+            <div className="relative mt-1">
+              <select
+                id="phone"
+                name="phone"
+                value={phoneIndex || 0}
+                onChange={(e) => setPhoneIndex(Number(e.target.value))}
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200"
+              >
+                {qrCodes.map((phone, index) => {
+                  const statusInfo = getStatusInfo(phone.status);
+                  return (
+                    <option 
+                      key={index} 
+                      value={index}
+                    >
+                      {`${getPhoneName(index)} - ${statusInfo.text}`}
+                    </option>
+                  );
+                })}
+              </select>
+              {isLoadingStatus && (
+                <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+                  <LoadingIcon icon="three-dots" className="w-4 h-4" />
+                </div>
+              )}
+              <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                <Lucide icon="ChevronDown" className="w-4 h-4 text-gray-400" />
+              </div>
+            </div>
+            {phoneIndex !== null && qrCodes[phoneIndex] && (
+              <div className={`mt-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusInfo(qrCodes[phoneIndex].status).color}`}>
+                <Lucide icon={getStatusInfo(qrCodes[phoneIndex].status).icon} className="w-4 h-4 mr-1" />
+                {getStatusInfo(qrCodes[phoneIndex].status).text}
               </div>
             )}
           </div>
