@@ -10089,9 +10089,7 @@ console.log(baseUrl);
                                             byteNumbers[i] =
                                               byteCharacters.charCodeAt(i);
                                           }
-                                          const byteArray = new Uint8Array(
-                                            byteNumbers
-                                          );
+                                          const byteArray = Uint8Array.from(byteNumbers);
                                           const blob = new Blob([byteArray], {
                                             type: mimeType,
                                           });

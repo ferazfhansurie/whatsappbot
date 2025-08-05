@@ -76,19 +76,19 @@ module.exports = {
     plugin(function ({ addBase, matchUtilities }) {
       addBase({
         // Default colors
-       ":root": {
-  "--color-theme-1": toRGB(colors.black),
-  "--color-theme-2": toRGB(colors.gray["900"]),
-  "--color-primary": toRGB(colors.black),
-  "--color-secondary": toRGB(colors.gray["200"]),
-  "--color-success": toRGB(colors.gray["500"]),
-  "--color-info": toRGB(colors.gray["400"]),
-  "--color-warning": toRGB(colors.gray["600"]),
-  "--color-pending": toRGB(colors.gray["500"]),
-  "--color-danger": toRGB(colors.gray["700"]),
-  "--color-light": toRGB(colors.gray["100"]),
-  "--color-dark": toRGB(colors.black),
-},
+        ":root": {
+          "--color-theme-1": toRGB("#3baf29"),
+          "--color-theme-2": toRGB(colors.gray["900"]),
+          "--color-primary": toRGB("#3baf29"),
+          "--color-secondary": toRGB(colors.gray["200"]),
+          "--color-success": toRGB(colors.gray["500"]),
+          "--color-info": toRGB(colors.gray["400"]),
+          "--color-warning": toRGB(colors.gray["600"]),
+          "--color-pending": toRGB(colors.gray["500"]),
+          "--color-danger": toRGB(colors.gray["700"]),
+          "--color-light": toRGB(colors.gray["100"]),
+          "--color-dark": toRGB("#3baf29"),
+        },
         // Default dark-mode colors
         ".dark": {
           "--color-primary": toRGB(colors.black),

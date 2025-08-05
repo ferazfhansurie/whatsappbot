@@ -166,14 +166,7 @@ const firebaseConfig = {
                     </Button>
                     
                   </div>
-                  <div className="mt-4 text-center intro-x">
-                    <button 
-                      onClick={() => setShowResetModal(true)} 
-                      className="text-primary hover:underline"
-                    >
-                      Forgot Password?
-                    </button>
-                  </div>
+                 
                   {error && (
                     <div className="mt-5 text-center text-red-500">{error}</div>
                   )}
