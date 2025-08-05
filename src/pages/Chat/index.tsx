@@ -757,6 +757,7 @@ function Main() {
   const [activeNotifications, setActiveNotifications] = useState<
     (string | number)[]
   >([]);
+  //
   const [isAssistantAvailable, setIsAssistantAvailable] = useState(false);
   const [isGeneratingResponse, setIsGeneratingResponse] = useState(false);
   const [showPlaceholders, setShowPlaceholders] = useState(false);
