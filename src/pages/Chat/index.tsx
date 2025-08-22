@@ -3467,7 +3467,7 @@ console.log(baseUrl);
 
       // Set message usage for enterprise plan
       if (data.companyData.plan === "enterprise") {
-        // setMessageUsage(data.messageUsage);
+        setMessageUsage(data.messageUsage.aiMessages);
       }
 
       // Set employee list
