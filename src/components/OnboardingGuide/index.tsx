@@ -41,7 +41,7 @@ const OnboardingGuideComponent: React.FC<OnboardingGuideProps> = ({ onClose }) =
   const steps: OnboardingStep[] = [
     {
       id: "welcome",
-      title: "Welcome to XYZ AICRM!",
+      title: "Welcome to Juta CRM!",
       description: "Let's get you started with a quick tour of the system",
       icon: <HelpCircle className="w-8 h-8 text-blue-500" />,
       content: (
@@ -49,7 +49,7 @@ const OnboardingGuideComponent: React.FC<OnboardingGuideProps> = ({ onClose }) =
           <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
             <MessageCircle className="w-12 h-12 text-white" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800">Welcome to XYZ AICRM</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Welcome to Juta CRM</h2>
           <p className="text-gray-600 max-w-md mx-auto">
             Your all-in-one customer relationship management solution for WhatsApp Business. 
             Let's explore the key features that will help you grow your business.

@@ -13102,7 +13102,7 @@ console.log(data);
                 
       
              
-                {userData?.company === "XYZ AISoftware" && (
+                {userData?.company === "Juta Software" && (
                   <button
                     className="p-2 m-0 !box ml-2"
                     onClick={handleGenerateAIResponse}

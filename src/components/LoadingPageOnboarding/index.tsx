@@ -33,7 +33,7 @@ const LoadingPageOnboarding: React.FC<LoadingPageOnboardingProps> = ({ isOpen, o
         "Wait for 'Device linked successfully' message"
       ],
       benefits: [
-        "Connect WhatsApp Business to XYZ AICRM",
+        "Connect WhatsApp Business to Juta CRM",
         "Access all CRM features",
         "Manage customer conversations",
         "Use automation tools"
@@ -164,7 +164,7 @@ const LoadingPageOnboarding: React.FC<LoadingPageOnboardingProps> = ({ isOpen, o
     {
       id: "logout",
       title: "Logout",
-      description: "Securely sign out of your XYZ AICRM account and return to the login page.",
+      description: "Securely sign out of your Juta CRM account and return to the login page.",
       selector: "logout",
       features: [
         "Secure session termination",
@@ -469,7 +469,7 @@ const LoadingPageOnboarding: React.FC<LoadingPageOnboardingProps> = ({ isOpen, o
                   currentGuide.id === 'pairing-code-toggle' ? 'If QR scanning doesn\'t work, you can switch to phone number pairing.' :
                   currentGuide.id === 'get-pairing-code' ? 'If you prefer not to use QR codes, you can generate a pairing code to authenticate your WhatsApp account.' :
                   currentGuide.id === 'need-help' ? 'If you need assistance, our support team is here to help!' :
-                  currentGuide.id === 'logout' ? 'If you want to sign out of your XYZ AICRM account, click this button.' :
+                  currentGuide.id === 'logout' ? 'If you want to sign out of your Juta CRM account, click this button.' :
                   currentGuide.id === 'retry-connection' ? 'If you\'re experiencing connection issues, clicking this button will attempt to reconnect to the WebSocket server.' :
                   'The highlighted element below shows you exactly where this feature is located!'}
               </div>

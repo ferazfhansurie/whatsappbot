@@ -44,7 +44,7 @@ const OnboardingTrigger: React.FC<OnboardingTriggerProps> = ({
                   <HelpCircle className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-800">New to XYZ AICRM?</h3>
+                  <h3 className="font-semibold text-gray-800">New to Juta CRM?</h3>
                   <p className="text-sm text-gray-600">
                     Get started with our step-by-step guide to learn the system
                   </p>

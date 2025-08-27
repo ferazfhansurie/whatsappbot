@@ -1,6 +1,6 @@
-# XYZ AICRM Onboarding System
+# Juta CRM Onboarding System
 
-A comprehensive step-by-step onboarding guide designed to help new users understand and navigate the XYZ AICRM system effectively.
+A comprehensive step-by-step onboarding guide designed to help new users understand and navigate the Juta CRM system effectively.
 
 ## Features
 
@@ -78,7 +78,7 @@ const {
 
 ## Onboarding Steps
 
-### 1. **Welcome to XYZ AICRM**
+### 1. **Welcome to Juta CRM**
 - Introduction to the system
 - Overview of key benefits
 - Getting started encouragement
@@ -288,4 +288,4 @@ When adding new onboarding steps:
 
 ## License
 
-This onboarding system is part of the XYZ AICRM project and follows the same licensing terms.
+This onboarding system is part of the Juta CRM project and follows the same licensing terms.

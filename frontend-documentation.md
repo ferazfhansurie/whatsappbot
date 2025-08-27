@@ -1,4 +1,4 @@
-# XYZ AICRM System - Frontend Documentation
+# Juta CRM System - Frontend Documentation
 
 ## Table of Contents
 1. [System Overview](#system-overview)
@@ -20,7 +20,7 @@
 
 ## System Overview
 
-XYZ AICRM is a comprehensive Customer Relationship Management system built with React, TypeScript, and Firebase. It's designed for businesses to manage customer communications, automate follow-ups, handle appointments, and track sales performance through WhatsApp integration.
+Juta CRM is a comprehensive Customer Relationship Management system built with React, TypeScript, and Firebase. It's designed for businesses to manage customer communications, automate follow-ups, handle appointments, and track sales performance through WhatsApp integration.
 
 ### Tech Stack
 - **Frontend**: React 18 + TypeScript + Vite
@@ -695,4 +695,4 @@ useEffect(() => {
 }, [companyId]);
 ```
 
-This comprehensive documentation provides everything a new frontend developer needs to understand and work with the XYZ AICRM system effectively.
+This comprehensive documentation provides everything a new frontend developer needs to understand and work with the Juta CRM system effectively.

@@ -1253,7 +1253,7 @@ return (
                 <MessageList 
                   messages={messages} 
                   onSendMessage={sendMessageToAssistant} 
-                  assistantName={assistantInfo?.name || 'XYZ AIAssistant'} 
+                  assistantName={assistantInfo?.name || 'Juta Assistant'} 
                   deleteThread={deleteThread} 
                   threadId={threadId}
                   isApplyingChanges={isApplyingChanges}

@@ -1,6 +1,6 @@
 {
     "appId": "com.example.juta",
-    "appName": "XYZ AICRM",
+    "appName": "Juta CRM",
     "webDir": "dist",
     "server": {
       "androidScheme": "https"

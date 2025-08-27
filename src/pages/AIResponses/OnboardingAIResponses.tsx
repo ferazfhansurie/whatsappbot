@@ -626,7 +626,7 @@ const OnboardingAIResponses: React.FC = () => {
         <div className="mb-4">
           <div className="mb-2 flex justify-center">
             <img
-              alt="XYZ AISoftware Logo"
+              alt="Juta Software Logo"
               className="w-14 h-auto object-contain"
               src={logoUrl}
               onError={(e) => {
