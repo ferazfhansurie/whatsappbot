@@ -17,7 +17,7 @@ const OnboardingDemo: React.FC = () => {
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
             Experience the step-by-step onboarding guide designed to help new users 
-            understand and navigate the Juta CRM system effectively.
+            understand and navigate the XYZ AICRM system effectively.
           </p>
         </div>
 

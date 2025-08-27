@@ -294,7 +294,7 @@ Let me know if you need help creating your AI assistant!`,
         <div className="mb-2 flex-shrink-0">
           <div className="mb-1 flex justify-center">
             <img
-              alt="Juta Software Logo"
+              alt="XYZ AISoftware Logo"
               className="w-10 h-auto object-contain"
               src={logoUrl}
             />

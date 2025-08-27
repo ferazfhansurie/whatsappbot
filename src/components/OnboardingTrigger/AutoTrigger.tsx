@@ -44,7 +44,7 @@ const AutoOnboardingTrigger: React.FC<AutoOnboardingTriggerProps> = ({
                 </svg>
               </div>
               <div>
-                <h3 className="font-semibold text-gray-800">Welcome to Juta CRM! 🎉</h3>
+                <h3 className="font-semibold text-gray-800">Welcome to XYZ AICRM! 🎉</h3>
                 <p className="text-sm text-gray-600">
                   Let's get you started with a quick tour of the system
                 </p>

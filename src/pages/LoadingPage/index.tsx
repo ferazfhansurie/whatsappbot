@@ -1413,7 +1413,7 @@ function LoadingPage() {
                   {/* Main Title */}
                   <div className="mb-4">
                     <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-1.5">
-                      Juta Web
+                      XYZ AIWeb
                     </h1>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       Connect your WhatsApp Business account to start managing customer conversations
@@ -1818,7 +1818,7 @@ function LoadingPage() {
         <button
           onClick={() => setShowOnboarding(true)}
           className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 border-3 border-white text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 hover:from-blue-600 hover:to-blue-700 flex items-center justify-center relative group"
-          title="Learn about Juta CRM features"
+          title="Learn about XYZ AICRM features"
         >
           <BookOpen className="w-4 h-4" />
           
@@ -1838,7 +1838,7 @@ function LoadingPage() {
               <div className="w-1 h-1 bg-white rounded-full animate-pulse"></div>
             </div>
             <div className="flex-1">
-              <p className="text-xs font-medium mb-0.5">Welcome to Juta CRM!</p>
+              <p className="text-xs font-medium mb-0.5">Welcome to XYZ AICRM!</p>
               <p className="text-xs text-blue-100 mb-1">Click the blue button below for a step-by-step guide to get started.</p>
               <div className="flex items-center justify-center">
                 <div className="w-3 h-3 bg-white/20 rounded-full flex items-center justify-center">

@@ -9,7 +9,7 @@ const SimpleIconsOnboarding: React.FC<SimpleIconsOnboardingProps> = ({ onClose }
 
   const steps = [
     {
-      title: "Welcome to Juta CRM!",
+      title: "Welcome to XYZ AICRM!",
       description: "Let's get you started with a quick tour of the system",
       icon: "🎉"
     },

@@ -186,7 +186,7 @@ function Main() {
           <div className="mb-4">
             <div className="mb-3 flex justify-center">
               <img
-                alt="Juta Software Logo"
+                alt="XYZ AISoftware Logo"
                 className="w-20 h-auto object-contain"
                 src={logoUrl}
                 onError={(e) => {
@@ -200,7 +200,7 @@ function Main() {
               Welcome Back
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Sign in to your Juta Web account to continue
+              Sign in to your XYZ AIWeb account to continue
             </p>
           </div>
 

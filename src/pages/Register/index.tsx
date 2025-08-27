@@ -248,7 +248,7 @@ function Main() {
       
             <div className="mb-3 flex justify-center">
               <img
-                alt="Juta Software Logo"
+                alt="XYZ AISoftware Logo"
                 className="w-20 h-auto object-contain"
                 src={logoUrl}
                 onError={(e) => {
