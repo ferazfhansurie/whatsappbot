@@ -11173,7 +11173,7 @@ console.log(data);
                     <span>{tagName}</span>
                     {userData?.role === "1" && unreadCount > 0 && (
                       <span
-                        className={`px-1.5 py-0.5 rounded-full text-xs font-bold backdrop-blur-sm border ${
+                        className={`px-2 py-1 rounded-full text-sm font-bold backdrop-blur-sm border ${
                           tagName.toLowerCase() === "stop bot"
                             ? "bg-red-100/80 text-red-700 dark:text-red-300 dark:bg-red-900/60 border-red-200/50 dark:border-red-700/50"
                             : tagName.toLowerCase() === "active bot"
@@ -11362,7 +11362,7 @@ console.log(data);
                         <>
                           {/* Prominent badge for unread messages */}
                           {(contact.unreadCount ?? 0) > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 bg-green-500/90 backdrop-blur-sm text-white text-xs rounded-full px-1 py-0.5 min-w-[14px] h-[14px] flex items-center justify-center font-bold border border-white/30 shadow-sm">
+                            <span className="absolute -top-1 -right-1 bg-green-500/90 backdrop-blur-sm text-white text-sm rounded-full px-1.5 py-1 min-w-[18px] h-[18px] flex items-center justify-center font-bold border border-white/30 shadow-sm">
                               {(contact.unreadCount ?? 0) > 99
                                 ? "99+"
                                 : contact.unreadCount ?? 0}
